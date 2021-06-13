@@ -1,5 +1,5 @@
 ---
-title: "Testing the 'usmap' Package"
+title: "Testing the `usmap` Package"
 author: "Rebecca Amodeo"
 date: "6/12/2021"
 output: html_document
@@ -19,7 +19,7 @@ library(here)
 ## This is How it Started
 I wanted to map data from the "Incarceration Trends" [#tidytuesday project](https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-01-22) on a geographic map after being inspired by a more traditional graphical representation from [lizwillow on GitHub](https://github.com/lizwillow/TidyTuesday/blob/master/TT.2019.01.21/week20190121.Rmd). In addition to the clarity in the data vis, I also like to explore national and state-level data through comparing national metrics to the states I have lived in.
 
-```{r, include=FALSE}
+```{r eval=FALSE, include=FALSE}
 pretrial_pop <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-01-22/pretrial_population.csv")
 prison_pop <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-01-22/prison_population.csv")
 ```
@@ -27,7 +27,7 @@ prison_pop <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytu
 I ran into issues with the map packages I had used previously, so I got the idea to start with a new-to-me package as a way to help my brain detach from whatever it was that kept me from getting what I wanted out of old code I had used for a few specific purposes. I thought I could pay better attention to detail if I knew I was learning a whole new package.
 
 ## Choose a Map Package
-I chose 'usmap' package because it includes capacity to map Alaska and Hawaii unlike some other map packages I have used before. Even though much of the mapping I do these days is centered on the state of Oregon, I think it's good to practice a map package that has more than the contiguous 48. Download the 'usmap' documentation at <https://usmap.dev/>.
+I chose `usmap` package because it includes capacity to map Alaska and Hawaii unlike some other map packages I have used before. Even though much of the mapping I do these days is centered on the state of Oregon, I think it's good to practice a map package that has more than the contiguous 48. Download the `usmap` documentation at <https://usmap.dev/>.
 
 ## Map Template
 I start by practicing a blank / boundary-only map of the fifty (50) states of the U.S.A.
@@ -42,7 +42,8 @@ plot_usmap(regions = "counties") +
 ```
 
 ## Mapping Included Data
-Using area data contained in the 'usmap' package:
+Using area data contained in the `usmap` package:
+
 ```{r orcou, echo = FALSE}
 p_load(ggplot2, usmap)
 
@@ -61,12 +62,12 @@ plot_usmap(data = countypov,
 ```
 
 ## More Data
-I also wanted to map newer poverty rate data onto the county map using 'usmap' package.
+I also wanted to map newer poverty rate data onto the county map using `usmap` package.
 
-Full documentation for 2019 poverty data from Small Area Income and Poverty Estimates (SAIPE) Program available [here](https://www.census.gov/programs-surveys/saipe.html)
+Documentation for 2019 poverty data from Small Area Income and Poverty Estimates (SAIPE) Program available [here](https://www.census.gov/programs-surveys/saipe.html).
 
 ```{r pov19, include = FALSE}
-povest19 <- read_csv(here::here("data", "PovertyEstimates.csv"))
+povest19 <- read_csv(here("usmap", "PovertyEstimates.csv"))
 
 povest19 <- povest19 %>%
   mutate(fips = as.numeric(FIPStxt)) %>%
@@ -97,6 +98,7 @@ plot_usmap(data = tomap,
 Let's see if it's that easy when I scale it up to map county rates of poverty onto the entire U.S. map.
 
 In the first attempt, I removed the labels argument, so it defaults to `labels = FALSE`. I removed the `include =` argument, so all fifty (50) states show up on the map, and I adjusted the plot labs, so I wouldn't get confused. The result? I got a map that only has state outlines. Worse, it had all states the same saturation of grey fill.
+
 ```{r attempt1, echo = FALSE}
 tomapall <- povest19 %>%
   filter(attribute == "PCTPOVALL_2019")
@@ -113,6 +115,7 @@ plot_usmap(data = tomapall,
 ```
 
 In the second attempt, I filtered out the `fips = 0`, which is for the entire U.S. and filtered out the fips with "000" in attempt to remove all the state totals. That did a pretty good job, but I noticed there are several county-like polygons that got swept up in the removed data which resulted in some counties with grey fill rather than a data-scaled fill.
+
 ```{r attempt2, echo = FALSE}
 tomapall <- povest19 %>%
   filter(attribute == "PCTPOVALL_2019",
@@ -132,6 +135,7 @@ plot_usmap(data = tomapall,
 
 
 I got it in the third attempt where I only removed the the row where `fips == 0`.
+
 ```{r attempt3, echo = FALSE}
 tomapall <- povest19 %>%
   filter(attribute == "PCTPOVALL_2019",
@@ -153,4 +157,4 @@ Success! Well, success enough to move on to my originally intended data.
 But I'm tired, so I'll get to that next week. I would like to get to it tomorrow because I'm excited about it, but I am in the midst of a move, so I expect I will be pretty well occupied.
 
 ## See the Code
-The associated .Rmd file is available at <https://github.com/RAAmodeo/r_examples/usmap>.
+The associated .Rmd file is available at <https://github.com/RAAmodeo/r_examples/tree/master/usmap>.
