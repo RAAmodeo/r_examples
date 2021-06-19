@@ -7,22 +7,12 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(tidyverse)
-library(ggthemes)
-#library(ghibli)
-library(scales)
 library(pacman)
-library(purrr)
-library(here)
+p_load(ggplot2, ggthemes, ghibli, here, purr, scales, tidyverse, usmap)
 ```
 
 ## This is How it Started
 I wanted to map data from the "Incarceration Trends" [#tidytuesday project](https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-01-22) on a geographic map after being inspired by a more traditional graphical representation from [lizwillow on GitHub](https://github.com/lizwillow/TidyTuesday/blob/master/TT.2019.01.21/week20190121.Rmd). In addition to the clarity in the data vis, I also like to explore national and state-level data through comparing national metrics to the states I have lived in.
-
-```{r eval=FALSE, include=FALSE}
-pretrial_pop <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-01-22/pretrial_population.csv")
-prison_pop <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-01-22/prison_population.csv")
-```
 
 I ran into issues with the map packages I had used previously, so I got the idea to start with a new-to-me package as a way to help my brain detach from whatever it was that kept me from getting what I wanted out of old code I had used for a few specific purposes. I thought I could pay better attention to detail if I knew I was learning a whole new package.
 
@@ -30,11 +20,9 @@ I ran into issues with the map packages I had used previously, so I got the idea
 I chose `usmap` package because it includes capacity to map Alaska and Hawaii unlike some other map packages I have used before. Even though much of the mapping I do these days is centered on the state of Oregon, I think it's good to practice a map package that has more than the contiguous 48. Download the `usmap` documentation at <https://usmap.dev/>.
 
 ## Map Template
-I start by practicing a blank / boundary-only map of the fifty (50) states of the U.S.A.
+I start by practicing a blank / boundary-only map of the fifty (50) states of the U.S.A. The code for this is from the `usmap` documentation, but it's good to start simple.
 
 ```{r uscou, echo = FALSE}
-p_load(ggplot2, usmap)
-
 plot_usmap(regions = "counties") + 
   labs(title = "US Counties",
        subtitle = "This is a blank map of the counties of the United States.") + 
@@ -45,8 +33,6 @@ plot_usmap(regions = "counties") +
 Using area data contained in the `usmap` package:
 
 ```{r orcou, echo = FALSE}
-p_load(ggplot2, usmap)
-
 plot_usmap(data = countypov,
            values = "pct_pov_2014",
            include = "OR",
@@ -79,8 +65,6 @@ tomap <- povest19 %>%
 ```
 
 ```{r orpov19, echo = FALSE}
-p_load(ggplot2, usmap)
-
 plot_usmap(data = tomap,
            values = "value",
            include = "OR",
@@ -95,6 +79,7 @@ plot_usmap(data = tomap,
 
 ```
 
+## Expanding the Scale
 Let's see if it's that easy when I scale it up to map county rates of poverty onto the entire U.S. map.
 
 In the first attempt, I removed the labels argument, so it defaults to `labels = FALSE`. I removed the `include =` argument, so all fifty (50) states show up on the map, and I adjusted the plot labs, so I wouldn't get confused. The result? I got a map that only has state outlines. Worse, it had all states the same saturation of grey fill.
@@ -154,7 +139,193 @@ plot_usmap(data = tomapall,
 
 Success! Well, success enough to move on to my originally intended data.
 
-But I'm tired, so I'll get to that next week. I would like to get to it tomorrow because I'm excited about it, but I am in the midst of a move, so I expect I will be pretty well occupied.
+> Original Endnote from 06/12/2021:
+>
+>> But I'm tired, so I'll get to that next week. I would like to get to it tomorrow because I'm excited about it, but I am in the midst of a move, so I expect I will be pretty well occupied.
+
+## Back to Incarceration Trends
+
+I bring in the data from the Tidy Tuesday repo,
+
+```{r ttdata, include=FALSE}
+pretrial_pop <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-01-22/pretrial_population.csv")
+prison_pop <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-01-22/prison_population.csv")
+```
+
+and calculate and plot the national and by-state averages.
+
+
+
+```{r ttreshape, include = FALSE}
+# national averages
+us_avg <- pretrial_pop %>%
+  filter(pop_category == "Total",
+         year >= 1990) %>%
+  na.omit() %>% 
+  group_by(year) %>% 
+  summarize(rate_per_100000 = sum(pretrial_population)/sum(population) * 100000)
+
+# state averages
+states_avg <- pretrial_pop %>%
+  filter(pop_category == "Total",
+         year >= 1990) %>% 
+  group_by(year, state) %>%
+  na.omit() %>%
+  summarize(rate_per_100000 = sum(pretrial_population)/sum(population) * 100000)
+
+# county averages
+cou_avg <- pretrial_pop %>%
+  filter(pop_category == "Total",
+         year >= 1990) %>% 
+  group_by(year, state, county_name) %>%
+  na.omit() %>%
+  summarize(rate_per_100000 = sum(pretrial_population)/sum(population) * 100000)
+```
+
+```{r usmapfips, include = FALSE}
+fips()
+```
+Though the documentation for `usmap` package outlines use of `fips()` to return a complete listing of state and county fips. This did not work  it returned a vector of fifty-one (51) two-digit (2) codes, the codes for the 50 states and Washington D.C. Maybe it's an issue with the R 4.0.0 version of the package. Whatever it is, onto the next option, the `maps` package.
+
+```{r mapsfips, include = FALSE}
+p_load(maps)
+
+data(county.fips)
+
+orfips <- county.fips %>%
+  separate(polyname, into = c("state", "county"), sep = ",") %>%
+  filter(state == "oregon") %>%
+  select(-state)
+orfips$county <- str_to_title(orfips$county)
+
+orcoupret <- cou_avg %>%
+  filter(state == "OR") %>%
+  mutate_at("county_name", str_remove, " County") %>%
+  rename(county = county_name) %>%
+  left_join(orfips)
+
+```
+OK, my method may be a bit inelegant, but now I have the county fips merged to my Oregon data on pretrial populations. I'll start with a map of the pretrial population rates by county in 2006, the year I first moved to Oregon.
+
+```{r orcoupret2006, echo = FALSE}
+orcoupret2006 <- orcoupret %>%
+  filter(year == "2006")
+
+plot_usmap(data = orcoupret2006,
+           values = "rate_per_100000",
+           include = "OR",
+           regions = "counties",
+           labels = TRUE) +
+  scale_fill_continuous(low = "white", high = "red",
+                        name = "2006 Pretrial Population per 100000",
+                        label = scales::comma) +
+  labs(title = "Pretrial Detention Rates",
+       subtitle = "Pretrial Detention Rates for Oregon Counties in 2006",
+       caption = "Data from The Vera Institute") +
+  theme(legend.position = "bottom")
+```
+
+Let's compare that to the most recent year in the Incarceration Trends data, 2015.
+
+```{r orcoupret2015, echo = FALSE}
+orcoupret2015 <- orcoupret %>%
+  filter(year == "2015")
+
+plot_usmap(data = orcoupret2015,
+           values = "rate_per_100000",
+           include = "OR",
+           regions = "counties",
+           labels = TRUE) +
+  scale_fill_continuous(low = "white", high = "red",
+                        name = "2015 Pretrial Population per 100000",
+                        label = scales::comma) +
+  labs(title = "Pretrial Detention Rates",
+       subtitle = "Pretrial Detention Rates for Oregon Counties in 2015",
+       caption = "Data from The Vera Institute") +
+  theme(legend.position = "bottom")
+```
+
+Wow. Not only did the distribution of pretrial incarceration shift over the decade, but the rates themselves increased substantially. The legend for 2006 data indicates a top rate near 300, but the top end of the 2015 data is a rate of just over 450 people (per 100,000 in the county) incarcerated awaiting trial.
+
+Let's look at the change over time for the state overall with a simple line graph.
+
+```{r ortime, echo = FALSE}
+# I don't know why a new df is defined in order to add the "place" variable or why the data is filtered by year because "us_avg" already begins with 1990 as the earliest year represented. 
+us_1990 <- us_avg %>%
+  filter(year >= 1990) %>%
+  mutate(place = "U.S. Average")
+
+or90 <- pretrial_pop %>%
+  filter(state == c("OR"),
+         pop_category == "Total",
+         year >= 1990) %>% 
+  group_by(year, state) %>%
+  na.omit() %>%
+  summarize(rate_per_100000 = sum(pretrial_population)/sum(population) * 100000) %>%
+  select(year, rate_per_100000) %>%
+  ungroup() %>%
+  mutate(place = "Oregon")
+
+rbind(us_1990, or90) %>%
+  ggplot(aes(x = year, y = rate_per_100000, col = place, linetype = place, size = place)) +
+  geom_line() +
+  theme_light() +
+  scale_linetype_manual(values=c("dashed", "solid")) +
+  scale_color_manual(values = c("black", ghibli_palette("KikiMedium",n=5)[3])) + 
+  scale_size_manual(values = c(1,2)) +
+  theme_fivethirtyeight() +
+  labs(title = "Comparing pretrial detention rates for Oregon to the U.S. average",
+       subtitle = "Pretrial detention rates are per 100,000 residents.",
+       caption = "Data from The Vera Institute") +
+  theme(legend.key.size = unit(10,"pt"),
+        legend.text = element_text(size = 9),
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        legend.spacing.x = unit(15,"pt"),
+        legend.spacing.y = unit(5, "pt"),
+        legend.margin = margin(t = 0, b = 0),
+        plot.title = element_text(size = 14))
+
+ggsave(here("usmap", "or90.png"), width = 7.5, height = 4.5)
+```
+
+Hmmm. The statewide pretrial detention rates appear pretty close to each other when we look at 2006 and 2015 on this graph
+
+Let's look at by-county rates of pretrial incarceration in a line graph.
+
+```{r orcoutime, echo = FALSE}
+p_load(plotly)
+orcoutime <- orcoupret %>%
+  ggplot(aes(x = year, y = rate_per_100000, color = county)) +
+  geom_line(alpha = 0.3) +
+  theme_light() +
+  theme_fivethirtyeight() +
+  labs(title = "Comparing pretrial detention rates for Oregon Counties over time",
+       subtitle = "Pretrial detention rates are per 100,000 residents.",
+       caption = "Data from The Vera Institute") +
+  theme(legend.key.size = unit(10,"pt"),
+        legend.text = element_text(size = 9),
+        # legend.position = "bottom",
+        legend.title = element_blank(),
+        legend.spacing.x = unit(15,"pt"),
+        legend.spacing.y = unit(5, "pt"),
+        legend.margin = margin(t = 0, b = 0),
+        plot.title = element_text(size = 14))
+
+ggplotly(orcoutime)
+
+```
+
+This is a pretty busy graph, and the data all maps, but a few areas that have me skeptical of the completeness/accuracy of this data. Wallowa County has zero (0) people listed in pretrial detention for the entire time-frame. Hood River County shows a distinct difference in the 1994 - 1999 range where the county suddenly records zero (0) people held pretrial. I would bet that these counties simply did not report in the database used for this Incarderation Trends data set. 
+
+Linn County shows a significant drop-off in Linn County in 2015, but it is not zero (0), and that county's rates had been decreasing in the past couple years. This one may be accurate.
+
+## Advanced Mods
+### Labels
+I am looking for a way to modify the in-map labels. I see in the `usmap` documentation that I can easily alter the text color of the labels (on states or on counties). I want to change the label font size and the label positioning, so the county labels no longer overlap severely enough to be unclear for anyone unfamiliar with Oregon counties. I also want a way to include/exclude subsets of labels. When I'm comparing a group of counties or states to the rest of the state or nation and am using a scale_fill option, I want to indicate the polygons of interest by labeling them and not the others.
+
+### Polygon Boundaries
+I also want to highlight a subset of the county boundaries. This is for the same reason I want to include/exclude subsets of labels as mentioned above.
 
 ## See the Code
-The associated .Rmd file is available at <https://github.com/RAAmodeo/r_examples/tree/master/usmap>.
+The associated `.Rmd` file is available at <https://github.com/RAAmodeo/r_examples/tree/master/usmap>.
