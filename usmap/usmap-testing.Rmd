@@ -2,7 +2,9 @@
 title: "Testing the `usmap` Package"
 author: "Rebecca Amodeo"
 date: "6/12/2021"
-output: html_document
+output:
+  html_document:
+  github_document: default
 ---
 
 ```{r setup, include=FALSE}
